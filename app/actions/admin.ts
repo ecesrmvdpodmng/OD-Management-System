@@ -28,11 +28,13 @@ function isExistingAuthAccount(error: unknown) {
 }
 function safeMessage(error: unknown, operation = "account operation") {
   if (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")) return "Staff invitations need the server-only SUPABASE_SERVICE_ROLE_KEY. Existing accounts can still have their role changed from the Accounts list.";
-  const databaseError = error as { code?: string; message?: string; status?: number } | null;
+  const databaseError = error as { code?: string; message?: string; details?: string; hint?: string; status?: number } | null;
   console.error(`[admin-action:${operation}] operation failed`, {
     code: databaseError?.code,
     status: databaseError?.status,
     message: sanitizeStaffSetupDiagnostic(databaseError?.message),
+    details: sanitizeStaffSetupDiagnostic(databaseError?.details),
+    hint: sanitizeStaffSetupDiagnostic(databaseError?.hint),
   });
   const staffSetupMessage = staffSetupFailureMessage(operation, databaseError);
   if (staffSetupMessage) return staffSetupMessage;
