@@ -1,7 +1,7 @@
 const requiredPublic = ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY"] as const;
 
 export const env = {
-  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://od-management.srmecevdp.com",
   allowedEmailDomain: (process.env.ALLOWED_EMAIL_DOMAIN ?? "").trim().toLowerCase(),
   emailProvider: process.env.EMAIL_PROVIDER?.trim().toLowerCase(),
   emailFrom: process.env.EMAIL_FROM?.trim(),
