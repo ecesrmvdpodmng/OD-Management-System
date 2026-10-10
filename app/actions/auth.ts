@@ -24,7 +24,7 @@ export async function registerStudentAction(input: unknown): Promise<AuthActionR
     const { data, error } = await supabase.auth.signUp({
       email: parsed.email.toLowerCase(), password: parsed.password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/auth/callback`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://od-management.srmecevdp.com"}/auth/callback`,
         data: { full_name: parsed.fullName, register_number: parsed.registerNumber, department_code: departmentCode, section: parsed.section, year: parsed.year }
       }
     });
