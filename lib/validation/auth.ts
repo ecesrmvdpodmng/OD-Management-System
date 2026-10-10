@@ -8,11 +8,14 @@ export const registerNumberSchema = z.string().trim().toUpperCase().regex(/^RA[A
   message: "Enter a valid SRMIST register number beginning with RA."
 });
 
+export const studentSections = ["Core", "VLSI", "DS"] as const;
+export type StudentSection = (typeof studentSections)[number];
+
 export const registerStudentSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   registerNumber: registerNumberSchema,
   departmentId: z.union([z.string().uuid(), z.literal("ECE")]),
-  section: z.enum(["A", "B"]),
+  section: z.enum(studentSections),
   year: z.enum(["I", "II", "III", "IV"]),
   email: srmistEmailSchema,
   password: z.string().min(10).max(128),
