@@ -5,7 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, requireHod } from "@/lib/auth";
 import { hasAllowedEmailDomain } from "@/lib/env";
-import { findPendingStaffInvitation } from "@/lib/staff-invitations";
+import { resolveStaffInvitation } from "@/lib/staff-invitations";
+import { classifyStaffInviteAttempt } from "@/lib/staff-invitation-policy";
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 function adminClient() {
@@ -14,14 +15,23 @@ function adminClient() {
   if (!url || !key) throw new Error("Admin provisioning is not configured. Add SUPABASE_SERVICE_ROLE_KEY to the server environment.");
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
+function publicAuthClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Supabase Auth is not configured on the server.");
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+function isExistingAuthAccount(error: unknown) {
+  const authError = error as { code?: string; message?: string; status?: number } | null;
+  return authError?.code === "email_exists" || (authError?.status === 422 && /already (registered|exists)|user already/i.test(authError.message ?? ""));
+}
 function safeMessage(error: unknown, operation = "account operation") {
   if (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")) return "Staff invitations need the server-only SUPABASE_SERVICE_ROLE_KEY. Existing accounts can still have their role changed from the Accounts list.";
   const databaseError = error as { code?: string; message?: string; status?: number } | null;
   console.error(`[admin-action:${operation}] operation failed`, { code: databaseError?.code, status: databaseError?.status, message: databaseError?.message, error });
   if (["PGRST202", "42883"].includes(databaseError?.code ?? "")) return "The Admin directory database function is missing. Apply the latest Supabase migration and try again.";
   if (["PGRST205", "PGRST204", "42P01", "42703"].includes(databaseError?.code ?? "")) return "The staff invitation database schema is missing. Apply migrations 202610010001, 202610020001, and 202610060001 in Supabase, then retry.";
-  if (["23505", "email_exists"].includes(databaseError?.code ?? "")) return "This email already has an account that is not an incomplete staff invitation. Use Accounts to manage its role.";
-  if (databaseError?.status === 422 || /already registered/i.test(databaseError?.message ?? "")) return "Supabase Auth already has this account. If it is an incomplete staff invitation, apply the latest migrations and retry the invitation.";
+  if (["23505", "email_exists"].includes(databaseError?.code ?? "") || databaseError?.status === 422 || /already registered/i.test(databaseError?.message ?? "")) return "This email already has an account, but no matching pending staff invitation can be used. Check the account in Users or ask an administrator to verify the invitation.";
   if (operation === "send invitation email") {
     const code = databaseError?.code ?? "";
     const message = databaseError?.message ?? "";
@@ -31,6 +41,11 @@ function safeMessage(error: unknown, operation = "account operation") {
     if (process.env.NODE_ENV === "development") return `Supabase could not send the invitation (${code || databaseError?.status || "Auth error"}): ${message || "check the Supabase Auth logs"}`;
     return "Supabase Auth could not send this invitation. Check Authentication → Emails → SMTP Settings and the project Auth logs.";
   }
+  if (operation === "send existing account link") {
+    if (databaseError?.code === "over_email_send_rate_limit" || databaseError?.status === 429) return "Supabase is rate-limiting sign-in links. Wait before trying again.";
+    if (process.env.NODE_ENV === "development") return `Supabase could not send the secure staff setup link (${databaseError?.code ?? databaseError?.status ?? "Auth error"}): ${databaseError?.message ?? "check the Supabase Auth logs"}`;
+    return "Supabase could not send the secure staff setup link. Check the Auth email settings and project logs.";
+  }
   return "The requested account operation could not be completed.";
 }
 
@@ -39,8 +54,11 @@ export async function getStaffSetupInfoAction(): Promise<ActionResult<{ email: s
     const supabase = await (await import("@/lib/supabase/server")).createSupabaseServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user || !user.email_confirmed_at || !hasAllowedEmailDomain(user.email ?? "")) return { ok: false, message: "Open the invitation link from your verified SRMIST email to continue." };
-    const invitation = await findPendingStaffInvitation(user);
-    if (!invitation) return { ok: false, message: "There is no pending staff invitation for this account." };
+    const state = await resolveStaffInvitation(user);
+    if (state.status === "expired") return { ok: false, message: "This staff invitation has expired. Ask an administrator to resend it." };
+    if (state.status === "completed") return { ok: false, message: "Your staff registration is already complete. Sign in to continue to your dashboard." };
+    if (state.status !== "pending") return { ok: false, message: "No valid pending staff invitation is linked to this signed-in email. Ask an administrator to verify or resend the invitation." };
+    const invitation = state.invitation;
     const admin = adminClient();
     const { data: department, error: departmentError } = await admin.from("departments").select("name,code,is_active").eq("id", invitation.department_id).maybeSingle();
     if (departmentError) throw departmentError;
@@ -59,12 +77,37 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
     if (facultyId.length < 1 || facultyId.length > 120) return { ok: false, message: "Enter a Faculty ID (up to 120 characters)." };
     if (input.password.length < 10 || input.password.length > 128) return { ok: false, message: "Choose a password between 10 and 128 characters." };
     if (input.password !== input.confirmPassword) return { ok: false, message: "The passwords do not match." };
-    const invitation = await findPendingStaffInvitation(user);
-    if (!invitation) return { ok: false, message: "This staff invitation has already been completed or is no longer valid." };
+    const state = await resolveStaffInvitation(user);
+    if (state.status === "completed") {
+      const { data: profile, error: profileError } = await supabase.from("profiles")
+        .select("email,role,is_active,staff_setup_pending")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (profile && profile.email?.toLowerCase() === user.email?.toLowerCase() && profile.role === state.role && profile.is_active && !profile.staff_setup_pending) {
+        return { ok: true, data: null };
+      }
+      return { ok: false, message: "The invitation is marked complete, but this account has no matching active staff profile. Contact an administrator." };
+    }
+    if (state.status === "expired") return { ok: false, message: "This staff invitation has expired. Ask an administrator to resend it." };
+    if (state.status !== "pending") return { ok: false, message: "This invitation is invalid or linked to a different account. Ask an administrator to verify it." };
+    const invitation = state.invitation;
     const { error: passwordError } = await supabase.auth.updateUser({ password: input.password });
     if (passwordError) throw passwordError;
     const { error } = await supabase.rpc("complete_staff_account_setup", { p_full_name: fullName, p_faculty_id: facultyId });
-    if (error) throw error;
+    if (error) {
+      // A retry after a successful or concurrent completion should be safe:
+      // the verified user's active profile is the idempotency check.
+      const { data: profile, error: profileError } = await supabase.from("profiles")
+        .select("email,role,is_active,staff_setup_pending")
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (profile && profile.email?.toLowerCase() === user.email?.toLowerCase() && profile.role === invitation.role && profile.is_active && !profile.staff_setup_pending) {
+        return { ok: true, data: null };
+      }
+      throw error;
+    }
     revalidatePath("/admin/users");
     return { ok: true, data: null };
   } catch (error) { return { ok: false, message: safeMessage(error) }; }
@@ -82,7 +125,7 @@ export async function searchAdminUsersAction(query = ""): Promise<ActionResult<A
   } catch (error) { return { ok: false, message: safeMessage(error) }; }
 }
 
-export async function sendStaffInvitationAction(input: { email: string; role: "faculty" | "hod"; departmentId: string }): Promise<ActionResult<{ email: string; role: string }>> {
+export async function sendStaffInvitationAction(input: { email: string; role: "faculty" | "hod"; departmentId: string }): Promise<ActionResult<{ email: string; role: string; delivery: "invitation" | "sign-in" }>> {
   let operation = "validate invitation";
   try {
     const actor = await requireAdmin();
@@ -96,30 +139,54 @@ export async function sendStaffInvitationAction(input: { email: string; role: "f
     if (departmentError) throw departmentError;
     if (!department || department.code !== "ECE") return { ok: false, message: "Choose the active ECE department." };
     operation = "check existing profile";
-    const { data: existingProfile, error: profileLookupError } = await client.from("profiles").select("id,auth_user_id,role,department_id,staff_setup_pending").eq("email", email).maybeSingle();
+    const { data: existingProfile, error: profileLookupError } = await client.from("profiles").select("id,auth_user_id,role,department_id,staff_setup_pending,is_active").eq("email", email).maybeSingle();
     if (profileLookupError) throw profileLookupError;
-    if (existingProfile && (!existingProfile.staff_setup_pending || existingProfile.role !== input.role || existingProfile.department_id !== input.departmentId)) return { ok: false, message: "An account already exists for this email. Use the Accounts list to manage its role." };
-    // A pending, inactive invite can be safely restarted if its one-time link
-    // expired or was consumed by an email security scanner.
-    if (existingProfile?.auth_user_id) {
-      operation = "reset incomplete account";
-      const { error: deleteError } = await client.auth.admin.deleteUser(existingProfile.auth_user_id);
-      if (deleteError) throw deleteError;
-    }
+    const { data: existingInvitation, error: invitationLookupError } = await client.from("staff_account_invitations")
+      .select("id,role,department_id,auth_user_id,claimed_at,completed_at")
+      .eq("email", email)
+      .maybeSingle();
+    if (invitationLookupError) throw invitationLookupError;
+    const attemptState = classifyStaffInviteAttempt({
+      profile: existingProfile,
+      invitation: existingInvitation,
+      role: input.role,
+      departmentId: input.departmentIdddd
+    });
+    if (attemptState === "completed") return { ok: false, message: "This email already has a completed OD profile. The account can sign in; use Accounts to manage its role." };
+    if (attemptState === "invalid") return { ok: false, message: "A pending staff invitation already exists with a different role or department. Ask an administrator to verify it before resending." };
     const redirectTo = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://od-management.srmecevdp.com").replace(/\/$/, "")}/auth/callback`;
     operation = "save invitation";
-    const { error: inviteError } = await client.from("staff_account_invitations").upsert({ email, role: input.role, department_id: input.departmentId, invited_by: actor.id, expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), auth_user_id: null, claimed_at: null, completed_at: null }, { onConflict: "email" });
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const invitationWrite = existingInvitation
+      ? await client.from("staff_account_invitations").update({ invited_by: actor.id, expires_at: expiresAt }).eq("id", existingInvitation.id).is("completed_at", null).select("id").maybeSingle()
+      : await client.from("staff_account_invitations").insert({ email, role: input.role, department_id: input.departmentId, invited_by: actor.id, expires_at: expiresAt }).select("id").maybeSingle();
+    const inviteError = invitationWrite.error;
     if (inviteError) throw inviteError;
+    if (!invitationWrite.data) return { ok: false, message: "This staff invitation was completed or changed while you were processing it. Refresh and review the account." };
     operation = "send invitation email";
     const { error } = await client.auth.admin.inviteUserByEmail(email, { redirectTo });
     if (error) {
+      if (isExistingAuthAccount(error)) {
+        // The Auth identity already exists. Do not delete or recreate it: send
+        // a passwordless link only to that exact email, without allowing OTP
+        // auth to create a new account. The normal callback still validates
+        // the verified email against the Admin-owned invitation.
+        operation = "send existing account link";
+        const { error: linkError } = await publicAuthClient().auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: redirectTo, shouldCreateUser: false }
+        });
+        if (linkError) throw linkError;
+        revalidatePath("/admin/users");
+        return { ok: true, data: { email, role: input.role, delivery: "sign-in" } };
+      }
       // Keep the trusted invite record. Supabase may have created the Auth
       // user or delivered mail even when its response reports a send error;
       // deleting the invite here could make a received link unusable.
       throw error;
     }
     revalidatePath("/admin/users");
-    return { ok: true, data: { email, role: input.role } };
+    return { ok: true, data: { email, role: input.role, delivery: "invitation" } };
   } catch (error) { return { ok: false, message: safeMessage(error, operation) }; }
 }
 
