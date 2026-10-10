@@ -150,7 +150,7 @@ export async function sendStaffInvitationAction(input: { email: string; role: "f
       profile: existingProfile,
       invitation: existingInvitation,
       role: input.role,
-      departmentId: input.departmentIdddd
+      departmentId: input.departmentId
     });
     if (attemptState === "completed") return { ok: false, message: "This email already has a completed OD profile. The account can sign in; use Accounts to manage its role." };
     if (attemptState === "invalid") return { ok: false, message: "A pending staff invitation already exists with a different role or department. Ask an administrator to verify it before resending." };
