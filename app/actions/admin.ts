@@ -106,7 +106,7 @@ export async function sendStaffInvitationAction(input: { email: string; role: "f
       const { error: deleteError } = await client.auth.admin.deleteUser(existingProfile.auth_user_id);
       if (deleteError) throw deleteError;
     }
-    const redirectTo = `${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/auth/callback`;
+    const redirectTo = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://od-management.srmecevdp.com").replace(/\/$/, "")}/auth/callback`;
     operation = "save invitation";
     const { error: inviteError } = await client.from("staff_account_invitations").upsert({ email, role: input.role, department_id: input.departmentId, invited_by: actor.id, expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), auth_user_id: null, claimed_at: null, completed_at: null }, { onConflict: "email" });
     if (inviteError) throw inviteError;
