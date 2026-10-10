@@ -5,16 +5,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { registerStudentAction } from "@/app/actions/auth";
-import { registerStudentSchema } from "@/lib/validation/auth";
+import { registerStudentSchema, studentSections, type StudentSection } from "@/lib/validation/auth";
 
 type DepartmentOption = { id: string; name: string; code: string };
-type FormValues = { fullName: string; registerNumber: string; departmentId: string; section: "A" | "B"; year: "I" | "II" | "III" | "IV"; email: string; password: string; confirmPassword: string };
+type FormValues = { fullName: string; registerNumber: string; departmentId: string; section: StudentSection; year: "I" | "II" | "III" | "IV"; email: string; password: string; confirmPassword: string };
 type Field = keyof FormValues;
 const fieldNames: Record<Field, string> = { fullName: "Full Name", registerNumber: "Register Number", departmentId: "Department", section: "Section", year: "Year", email: "Email", password: "Password", confirmPassword: "Confirm Password" };
 
 export default function RegisterForm({ departments, departmentError }: { departments: DepartmentOption[]; departmentError: string | null }) {
   const router = useRouter();
-  const [form, setForm] = useState<FormValues>({ fullName: "", registerNumber: "", departmentId: departments[0]?.id ?? "", section: "A", year: "I", email: "", password: "", confirmPassword: "" });
+  const [form, setForm] = useState<FormValues>({ fullName: "", registerNumber: "", departmentId: departments[0]?.id ?? "", section: "Core", year: "I", email: "", password: "", confirmPassword: "" });
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState("");
   const [message, setMessage] = useState("");
@@ -36,7 +36,7 @@ export default function RegisterForm({ departments, departmentError }: { departm
           next[field] = field === "email" ? "Please use your official SRMIST email address."
             : field === "registerNumber" ? "Please enter a valid SRMIST register number."
             : field === "confirmPassword" ? "Passwords do not match."
-            : field === "section" ? "Please choose section A or B."
+            : field === "section" ? "Please choose Core, VLSI, or DS."
             : field === "departmentId" ? "Please select your department."
             : field === "year" ? "Please select your year."
             : field === "password" ? "Password must contain at least 10 characters."
@@ -62,7 +62,7 @@ export default function RegisterForm({ departments, departmentError }: { departm
       <div className="sm:col-span-2"><label htmlFor="fullName" className="text-sm font-medium text-muted">Full Name<input id="fullName" required autoComplete="name" value={form.fullName} aria-invalid={Boolean(errors.fullName)} aria-describedby={errors.fullName ? "fullName-error" : undefined} onChange={(event) => update("fullName", event.target.value)} className={inputClass("fullName")} /></label>{errorFor("fullName")}</div>
       <div><label htmlFor="registerNumber" className="text-sm font-medium text-muted">Register Number<input id="registerNumber" required autoCapitalize="characters" placeholder="RA..." value={form.registerNumber} aria-invalid={Boolean(errors.registerNumber)} aria-describedby={errors.registerNumber ? "registerNumber-error" : undefined} onChange={(event) => update("registerNumber", event.target.value)} className={inputClass("registerNumber")} /></label>{errorFor("registerNumber")}</div>
       <div><label htmlFor="departmentId" className="text-sm font-medium text-muted">Department<select id="departmentId" required value={form.departmentId} onChange={(event) => update("departmentId", event.target.value)} className={inputClass("departmentId")}><option value="">Select Department</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>{errorFor("departmentId")}</div>
-      <div><label htmlFor="section" className="text-sm font-medium text-muted">Section<select id="section" required value={form.section} onChange={(event) => update("section", event.target.value as "A" | "B")} className={inputClass("section")}><option value="A">A</option><option value="B">B</option></select></label>{errorFor("section")}</div>
+      <div><label htmlFor="section" className="text-sm font-medium text-muted">Section<select id="section" required value={form.section} onChange={(event) => update("section", event.target.value)} className={inputClass("section")}>{studentSections.map((section) => <option key={section} value={section}>{section}</option>)}</select></label>{errorFor("section")}</div>
       <div><label htmlFor="year" className="text-sm font-medium text-muted">Year<select id="year" required value={form.year} onChange={(event) => update("year", event.target.value as FormValues["year"])} className={inputClass("year")}><option value="I">I Year</option><option value="II">II Year</option><option value="III">III Year</option><option value="IV">IV Year</option></select></label>{errorFor("year")}</div>
       <div className="sm:col-span-2"><label htmlFor="email" className="text-sm font-medium text-muted">College Email ID<input id="email" required type="email" autoComplete="email" placeholder="name@srmist.edu.in" value={form.email} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "email-error" : undefined} onChange={(event) => update("email", event.target.value)} className={inputClass("email")} /></label>{errorFor("email")}</div>
       <div><label htmlFor="password" className="text-sm font-medium text-muted">Password<span className="relative mt-1 block"><input id="password" required type={showPassword ? "text" : "password"} autoComplete="new-password" value={form.password} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "password-error" : "password-help"} onChange={(event) => update("password", event.target.value)} className={`w-full rounded-lg border ${errors.password ? "border-red-400" : "border-line"} px-3 py-2 pr-11 text-ink`} /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} className="absolute inset-y-0 right-0 flex items-center px-3 text-muted">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>{errorFor("password")}<span id="password-help" className="mt-1 block text-xs text-muted">Use at least 10 characters.</span></div>
