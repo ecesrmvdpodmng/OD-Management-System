@@ -7,6 +7,7 @@ import { requireAdmin, requireHod } from "@/lib/auth";
 import { hasAllowedEmailDomain } from "@/lib/env";
 import { resolveStaffInvitation } from "@/lib/staff-invitations";
 import { classifyStaffInviteAttempt } from "@/lib/staff-invitation-policy";
+import { sanitizeStaffSetupDiagnostic, staffSetupFailureMessage } from "@/lib/staff-setup-errors";
 
 type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 function adminClient() {
@@ -28,7 +29,13 @@ function isExistingAuthAccount(error: unknown) {
 function safeMessage(error: unknown, operation = "account operation") {
   if (error instanceof Error && error.message.includes("SUPABASE_SERVICE_ROLE_KEY")) return "Staff invitations need the server-only SUPABASE_SERVICE_ROLE_KEY. Existing accounts can still have their role changed from the Accounts list.";
   const databaseError = error as { code?: string; message?: string; status?: number } | null;
-  console.error(`[admin-action:${operation}] operation failed`, { code: databaseError?.code, status: databaseError?.status, message: databaseError?.message, error });
+  console.error(`[admin-action:${operation}] operation failed`, {
+    code: databaseError?.code,
+    status: databaseError?.status,
+    message: sanitizeStaffSetupDiagnostic(databaseError?.message),
+  });
+  const staffSetupMessage = staffSetupFailureMessage(operation, databaseError);
+  if (staffSetupMessage) return staffSetupMessage;
   if (["PGRST202", "42883"].includes(databaseError?.code ?? "")) return "The Admin directory database function is missing. Apply the latest Supabase migration and try again.";
   if (["PGRST205", "PGRST204", "42P01", "42703"].includes(databaseError?.code ?? "")) return "The staff invitation database schema is missing. Apply migrations 202610010001, 202610020001, and 202610060001 in Supabase, then retry.";
   if (["23505", "email_exists"].includes(databaseError?.code ?? "") || databaseError?.status === 422 || /already registered/i.test(databaseError?.message ?? "")) return "This email already has an account, but no matching pending staff invitation can be used. Check the account in Users or ask an administrator to verify the invitation.";
@@ -68,6 +75,7 @@ export async function getStaffSetupInfoAction(): Promise<ActionResult<{ email: s
 }
 
 export async function completeStaffSetupAction(input: { fullName: string; facultyId: string; password: string; confirmPassword: string }): Promise<ActionResult<null>> {
+  let operation = "load authenticated user";
   try {
     const supabase = await (await import("@/lib/supabase/server")).createSupabaseServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -77,13 +85,14 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
     if (facultyId.length < 1 || facultyId.length > 120) return { ok: false, message: "Enter a Faculty ID (up to 120 characters)." };
     if (input.password.length < 10 || input.password.length > 128) return { ok: false, message: "Choose a password between 10 and 128 characters." };
     if (input.password !== input.confirmPassword) return { ok: false, message: "The passwords do not match." };
+    operation = "validate staff invitation";
     const state = await resolveStaffInvitation(user);
     if (state.status === "completed") {
       const { data: profile, error: profileError } = await supabase.from("profiles")
         .select("email,role,is_active,staff_setup_pending")
         .eq("auth_user_id", user.id)
         .maybeSingle();
-      if (profileError) throw profileError;
+      if (profileError) { operation = "verify completed staff profile"; throw profileError; }
       if (profile && profile.email?.toLowerCase() === user.email?.toLowerCase() && profile.role === state.role && profile.is_active && !profile.staff_setup_pending) {
         return { ok: true, data: null };
       }
@@ -92,8 +101,10 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
     if (state.status === "expired") return { ok: false, message: "This staff invitation has expired. Ask an administrator to resend it." };
     if (state.status !== "pending") return { ok: false, message: "This invitation is invalid or linked to a different account. Ask an administrator to verify it." };
     const invitation = state.invitation;
+    operation = "set staff account password";
     const { error: passwordError } = await supabase.auth.updateUser({ password: input.password });
     if (passwordError) throw passwordError;
+    operation = "provision staff profile";
     const { error } = await supabase.rpc("complete_staff_account_setup", { p_full_name: fullName, p_faculty_id: facultyId });
     if (error) {
       // A retry after a successful or concurrent completion should be safe:
@@ -102,7 +113,7 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
         .select("email,role,is_active,staff_setup_pending")
         .eq("auth_user_id", user.id)
         .maybeSingle();
-      if (profileError) throw profileError;
+      if (profileError) { operation = "verify provisioned staff profile"; throw profileError; }
       if (profile && profile.email?.toLowerCase() === user.email?.toLowerCase() && profile.role === invitation.role && profile.is_active && !profile.staff_setup_pending) {
         return { ok: true, data: null };
       }
@@ -110,7 +121,7 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
     }
     revalidatePath("/admin/users");
     return { ok: true, data: null };
-  } catch (error) { return { ok: false, message: safeMessage(error) }; }
+  } catch (error) { return { ok: false, message: safeMessage(error, operation) }; }
 }
 
 export async function searchAdminUsersAction(query = ""): Promise<ActionResult<Array<{ id: string; name: string; email: string; role: string; registerNumber: string | null; department: string; isActive: boolean }>>> {
