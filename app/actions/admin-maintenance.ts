@@ -29,7 +29,13 @@ export async function wipeODWorkflowDataAction(): Promise<{ ok: true } | { ok: f
     const { error } = await db.rpc("admin_wipe_od_workflow_data");
     if (error) {
       console.error("[admin:wipe-od-workflow]", { code: error.code, message: error.message, details: error.details, hint: error.hint });
-      return { ok: false, message: "OD workflow data could not be cleared. Confirm the latest database migration is applied." };
+      if (error.code === "PGRST202" || error.code === "42883") {
+        return { ok: false, message: "The wipe procedure is missing from Supabase's API schema cache. Apply the admin maintenance schema refresh migration, then retry." };
+      }
+      if (error.code === "42501") {
+        return { ok: false, message: "Supabase rejected this wipe operation as unauthorized. Confirm this account has an active Admin profile." };
+      }
+      return { ok: false, message: `OD data wipe failed (${error.code || "unknown database error"}). Check the server function logs for the database diagnostic, then retry.` };
     }
     for (const path of ["/admin/dashboard", "/admin/students", "/admin/users", "/student/dashboard", "/student/applications", "/faculty/dashboard", "/faculty/approvals", "/faculty/attendance", "/hod/dashboard", "/hod/approvals"]) revalidatePath(path);
     return { ok: true };
