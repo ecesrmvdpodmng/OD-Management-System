@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 type ActionResult<T> = { ok: true; data: T } | { ok: false; message: string };
 export type SpecialEligibility = { eligible: boolean; used: number; limit: number };
 export type SpecialODRow = {
-  id: string; reference: string; student: string; registerNumber: string; section: string; studentClass: string;
+  id: string; reference: string; student: string; registerNumber: string; section: string; major: string; minor: string;
   date: string; category: string; eventName: string; reason: string; status: string;
   facultyStatus: string; hodStatus: string; submittedAt: string; canReview: boolean;
 };
@@ -54,7 +54,7 @@ export async function getFacultySpecialODsAction(): Promise<ActionResult<Special
     const assigned = (assignments ?? []).map((entry) => entry.od_request_id);
     if (!assigned.length) return { ok: true, data: [] };
     const { data, error } = await supabase.from("od_requests")
-      .select("id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,created_at,faculty_id,hod_id,requester:profiles!requester_id(full_name,register_number,section,student_class),od_request_faculty(faculty_id,status)")
+      .select("id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,created_at,faculty_id,hod_id,requester:profiles!requester_id(full_name,register_number,section,major,minor),od_request_faculty(faculty_id,status)")
       .eq("is_special_od", true).in("id", assigned).eq("department_id", actor.department_id)
       .order("created_at", { ascending: false }).limit(200);
     if (error) throw error;
@@ -68,7 +68,7 @@ export async function getHodSpecialODsAction(): Promise<ActionResult<SpecialODRo
     if (!actor.department_id) return { ok: false, message: "Your HOD profile is not linked to a department." };
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.from("od_requests")
-      .select("id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,created_at,faculty_id,hod_id,requester:profiles!requester_id(full_name,register_number,section,student_class),od_request_faculty(faculty_id,status)")
+      .select("id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,created_at,faculty_id,hod_id,requester:profiles!requester_id(full_name,register_number,section,major,minor),od_request_faculty(faculty_id,status)")
       .eq("is_special_od", true).eq("department_id", actor.department_id).in("status", ["PENDING_HOD", "APPROVED", "REJECTED_BY_HOD"])
       .order("created_at", { ascending: false }).limit(200);
     if (error) throw error;
@@ -78,13 +78,13 @@ export async function getHodSpecialODsAction(): Promise<ActionResult<SpecialODRo
 
 function mapSpecialRows(raw: Array<Record<string, unknown>>, facultyId?: string): SpecialODRow[] {
   return raw.filter((row) => row.is_special_od === true).map((row) => {
-    const requester = row.requester as { full_name?: string | null; register_number?: string | null; section?: string | null; student_class?: string | null } | null;
+    const requester = row.requester as { full_name?: string | null; register_number?: string | null; section?: string | null; major?: string | null; minor?: string | null } | null;
     const reviews = (row.od_request_faculty ?? []) as Array<{ faculty_id?: string; status?: string }>;
     const facultyStatus = reviews.some((review) => review.status === "REJECTED") ? "REJECTED" : reviews.length && reviews.every((review) => review.status === "APPROVED") ? "APPROVED" : reviews.length ? "PENDING" : "NOT_ASSIGNED";
     const status = String(row.status ?? "");
     return {
       id: String(row.id), reference: String(row.od_number ?? row.id), student: requester?.full_name ?? "—",
-      registerNumber: requester?.register_number ?? "—", section: requester?.section ?? "—", studentClass: requester?.student_class ?? "—", date: String(row.event_date ?? ""),
+      registerNumber: requester?.register_number ?? "—", section: requester?.section ?? "—", major: requester?.major ?? "—", minor: requester?.minor ?? "—", date: String(row.event_date ?? ""),
       category: String(row.od_category ?? ""), eventName: String(row.event_name ?? ""), reason: String(row.purpose ?? row.reason ?? ""),
       status, facultyStatus, hodStatus: status === "PENDING_HOD" ? "PENDING" : status === "APPROVED" ? "APPROVED" : status === "REJECTED_BY_HOD" ? "REJECTED" : "NOT_REACHED",
       submittedAt: String(row.created_at ?? ""), canReview: facultyId ? status === "PENDING_FACULTY" && reviews.some((review) => review.faculty_id === facultyId && review.status === "PENDING") : status === "PENDING_HOD"

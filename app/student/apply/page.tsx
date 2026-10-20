@@ -66,7 +66,7 @@ export default function ApplyPage() {
     <h2 className="text-2xl font-bold text-navy">Apply for OD</h2>
     <div className="mt-5 grid gap-5">
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft"><h3 className="font-bold text-navy">Student</h3>
-        <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-ink"><b>Requester profile</b><p>{currentUser.name} · {currentUser.registerNumber ?? "Register number unavailable"}</p><p>{currentUser.department} · Section {currentUser.section ?? "—"} · Class {currentUser.studentClass ?? "—"} · Year {currentUser.year ?? "—"}</p><p className="mt-1 text-xs text-muted">These details come from your profile and cannot be edited here.</p></div>
+        <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-ink"><b>Requester profile</b><p>{currentUser.name} · {currentUser.registerNumber ?? "Register number unavailable"}</p><p>{currentUser.department} · Major {currentUser.major ?? "—"} · Minor {currentUser.minor ?? "—"} · Section {currentUser.section ?? "—"} · Year {currentUser.year ?? "—"}</p><p className="mt-1 text-xs text-muted">These details come from your profile and cannot be edited here.</p></div>
       </section>
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft"><h3 className="font-bold text-navy">Event Details</h3><div className="mt-4 grid gap-4 md:grid-cols-2">
         <label className="text-sm font-medium text-muted">OD Application Category<select required value={category} onChange={(event) => setCategory(event.target.value as ODCategory | "")} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">Select Category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>

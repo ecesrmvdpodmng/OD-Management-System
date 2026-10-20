@@ -17,7 +17,7 @@ export type FacultyHistoryEntry = {
   status: string;
   isSpecial: boolean;
   remarks: string | null;
-  students: { name: string; registerNumber: string; section: string; studentClass: string }[];
+  students: { name: string; registerNumber: string; section: string; major: string; minor: string }[];
 };
 type HistoryRow = {
   id: string;
@@ -35,7 +35,7 @@ type HistoryRow = {
     event_date: string;
     status: string;
     is_special_od: boolean;
-    od_request_students: { student: { full_name: string; register_number: string | null; section: string | null; student_class: string | null } | null }[];
+    od_request_students: { student: { full_name: string; register_number: string | null; section: string | null; major: string | null; minor: string | null } | null }[];
   };
 };
 type ActionResult = { ok: true; data: FacultyHistoryEntry[] } | { ok: false; message: string };
@@ -48,7 +48,7 @@ export async function getFacultyActionHistoryAction(kind: FacultyHistoryKind, pa
     const supabase = await createSupabaseServerClient();
     const action = kind === "approved" ? "FACULTY_APPROVED" : "FACULTY_REJECTED";
     const { data, error } = await supabase.from("od_approval_history")
-      .select("id,od_request_id,action,created_at,remarks,request:od_requests!inner(id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,od_request_students(student:profiles!student_id(full_name,register_number,section,student_class)))")
+      .select("id,od_request_id,action,created_at,remarks,request:od_requests!inner(id,od_number,event_name,od_category,reason,purpose,event_date,status,is_special_od,od_request_students(student:profiles!student_id(full_name,register_number,section,major,minor)))")
       .eq("actor_id", faculty.id)
       .eq("actor_role", "faculty")
       .eq("action", action)
@@ -78,7 +78,8 @@ export async function getFacultyActionHistoryAction(kind: FacultyHistoryKind, pa
           name: student?.full_name ?? "Student",
           registerNumber: student?.register_number ?? "Register number unavailable",
           section: student?.section ?? "—",
-          studentClass: student?.student_class ?? "—"
+          major: student?.major ?? "—",
+          minor: student?.minor ?? "—"
         }))
       }))
     };

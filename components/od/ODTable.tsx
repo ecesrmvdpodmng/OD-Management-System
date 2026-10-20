@@ -38,7 +38,7 @@ export function ODTable({ records, role }: { records: ODRecord[]; role: Role }) 
                 <td className="px-4 py-3">
                   <span className="font-medium">{record.requester?.name ?? record.student.name}</span>
                   <span className="block text-xs text-muted">Requested by · {record.odStudents?.length ?? 1} OD student{(record.odStudents?.length ?? 1) === 1 ? "" : "s"}</span>
-                  {(record.odStudents ?? [record.student]).slice(0, 3).map((student) => <span key={student.id} className="block text-xs text-muted">{student.name} · {student.registerNumber} · Section {student.section ?? "—"} · Class {student.studentClass ?? "—"}</span>)}
+                  {(record.odStudents ?? [record.student]).slice(0, 3).map((student) => <span key={student.id} className="block text-xs text-muted">{student.name} · {student.registerNumber} · Major {student.major ?? "—"} · Minor {student.minor ?? "—"} · Section {student.section ?? "—"}</span>)}
                   {(record.odStudents?.length ?? 0) > 3 ? <span className="block text-xs text-muted">and {record.odStudents!.length - 3} more</span> : null}
                 </td>
                 <td className="px-4 py-3">{record.category}</td>

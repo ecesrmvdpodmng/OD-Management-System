@@ -126,15 +126,15 @@ export async function completeStaffSetupAction(input: { fullName: string; facult
   } catch (error) { return { ok: false, message: safeMessage(error, operation) }; }
 }
 
-  export async function searchAdminUsersAction(query = ""): Promise<ActionResult<Array<{ id: string; name: string; email: string; role: string; registerNumber: string | null; section: string | null; studentClass: string | null; department: string; isActive: boolean }>>> {
+  export async function searchAdminUsersAction(query = ""): Promise<ActionResult<Array<{ id: string; name: string; email: string; role: string; registerNumber: string | null; section: string | null; major: string | null; minor: string | null; department: string; isActive: boolean }>>> {
   try {
     await requireAdmin();
     const client = await (await import("@/lib/supabase/server")).createSupabaseServerClient();
     const term = query.trim().replace(/[,%()]/g, " ").slice(0, 80);
-      const { data, error } = await client.rpc("admin_profile_directory_v2", { p_search: term || null });
+      const { data, error } = await client.rpc("admin_profile_directory_v3", { p_search: term || null });
     if (error) throw error;
-      const rows = (data ?? []) as Array<{ id: string; full_name: string | null; email: string; role: string; register_number: string | null; section: string | null; student_class: string | null; department_name: string | null; department_code: string | null; is_active: boolean }>;
-      return { ok: true, data: rows.slice(0, 100).map((row) => ({ id: row.id, name: row.full_name ?? "", email: row.email, role: row.role, registerNumber: row.register_number, section: row.section, studentClass: row.student_class, department: row.department_name ?? row.department_code ?? "", isActive: row.is_active })) };
+      const rows = (data ?? []) as Array<{ id: string; full_name: string | null; email: string; role: string; register_number: string | null; section: string | null; major: string | null; minor: string | null; department_name: string | null; department_code: string | null; is_active: boolean }>;
+      return { ok: true, data: rows.slice(0, 100).map((row) => ({ id: row.id, name: row.full_name ?? "", email: row.email, role: row.role, registerNumber: row.register_number, section: row.section, major: row.major, minor: row.minor, department: row.department_name ?? row.department_code ?? "", isActive: row.is_active })) };
   } catch (error) { return { ok: false, message: safeMessage(error) }; }
 }
 

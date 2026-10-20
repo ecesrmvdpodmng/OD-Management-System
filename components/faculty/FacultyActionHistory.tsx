@@ -58,7 +58,7 @@ export function FacultyActionHistory({ kind }: { kind: FacultyHistoryKind }) {
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-ink">{entry.status.replaceAll("_", " ")}</span>
         </div>
         <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-          <HistoryDetail label="OD Students" value={entry.students.map((student) => `${student.name} · ${student.registerNumber} · Section ${student.section} · Class ${student.studentClass}`).join("; ") || "No student details available"} />
+          <HistoryDetail label="OD Students" value={entry.students.map((student) => `${student.name} · ${student.registerNumber} · Major ${student.major} · Minor ${student.minor} · Section ${student.section}`).join("; ") || "No student details available"} />
           <HistoryDetail label="Category" value={entry.category} />
           <HistoryDetail label="OD Date" value={formatDate(entry.eventDate)} />
           <HistoryDetail label={isApproved ? "Your approval" : "Your rejection"} value={formatDateTime(entry.actionAt)} />

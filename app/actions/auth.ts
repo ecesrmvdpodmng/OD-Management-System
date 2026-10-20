@@ -10,22 +10,11 @@ export async function registerStudentAction(input: unknown): Promise<AuthActionR
   try {
     const parsed = registerStudentSchema.parse(input);
     const supabase = await createSupabaseServerClient();
-    let departmentCode = "ECE";
-    if (parsed.departmentId !== "ECE") {
-      const { data: department, error: departmentError } = await supabase.from("departments")
-        .select("id,code,is_active").eq("id", parsed.departmentId).eq("is_active", true).maybeSingle();
-      if (departmentError) {
-        if (process.env.NODE_ENV === "development") console.error("[auth] registration department lookup failed", departmentError);
-        return { ok: false, message: process.env.NODE_ENV === "development" ? "Department lookup failed: " + departmentError.message : "We could not verify the selected department. Please try again." };
-      }
-      if (!department || department.code !== "ECE") return { ok: false, message: "Select an active department available in the OD system." };
-      departmentCode = department.code;
-    }
     const { data, error } = await supabase.auth.signUp({
       email: parsed.email.toLowerCase(), password: parsed.password,
       options: {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://od-management.srmecevdp.com"}/auth/callback`,
-        data: { full_name: parsed.fullName, register_number: parsed.registerNumber, department_code: departmentCode, section: parsed.section, student_class: parsed.studentClass, year: parsed.year }
+        data: { full_name: parsed.fullName, register_number: parsed.registerNumber, department_code: "ECE", section: parsed.section, major: parsed.major, minor: parsed.minor, year: parsed.year }
       }
     });
     if (error || !data.user) {
@@ -39,7 +28,7 @@ export async function registerStudentAction(input: unknown): Promise<AuthActionR
     return { ok: true, emailConfirmationRequired: !data.session };
   } catch (error) {
     if (error instanceof AppError) return { ok: false, message: error.message };
-    if (error instanceof Error && "issues" in error) return { ok: false, message: "Check the name, register number, department, section, class, college email, and password fields." };
+    if (error instanceof Error && "issues" in error) return { ok: false, message: "Check the name, register number, major, minor, section, college email, and password fields." };
     console.error("[auth] student registration failed", error);
     const issue = publicError(error);
     return { ok: false, message: issue.message };

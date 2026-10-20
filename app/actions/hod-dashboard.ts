@@ -17,7 +17,7 @@ export type HodODRow = {
   facultyStatus: string;
   hodStatus: string;
   isSpecial: boolean;
-  students: Array<{ name: string; registerNumber: string; section: string; studentClass: string }>;
+  students: Array<{ name: string; registerNumber: string; section: string; major: string; minor: string }>;
 };
 
 export type HodReports = {
@@ -45,7 +45,7 @@ async function loadDepartmentRequests() {
   for (let page = 0; page < 100; page += 1) {
     const { data, error } = await supabase
       .from("od_requests")
-      .select("id,od_number,department_id,od_category,event_date,reason,purpose,status,is_special_od,created_at,department:departments(name,code),requester:profiles!requester_id(full_name,register_number,section,student_class),od_request_students(request_id,student:profiles!student_id(full_name,register_number,section,student_class)),od_request_faculty(status)")
+      .select("id,od_number,department_id,od_category,event_date,reason,purpose,status,is_special_od,created_at,department:departments(name,code),requester:profiles!requester_id(full_name,register_number,section,major,minor),od_request_students(request_id,student:profiles!student_id(full_name,register_number,section,major,minor)),od_request_faculty(status)")
       .eq("department_id", actor.department_id)
       .order("created_at", { ascending: false })
       .range(page * 1000, page * 1000 + 999);
@@ -58,9 +58,9 @@ async function loadDepartmentRequests() {
     if (page === 99) throw new Error("There are too many department OD records to load in one report. Refine the reporting period and try again.");
   }
   return selected.map((row) => {
-    const requester = row.requester as { full_name?: string | null; register_number?: string | null; section?: string | null; student_class?: string | null } | null;
+    const requester = row.requester as { full_name?: string | null; register_number?: string | null; section?: string | null; major?: string | null; minor?: string | null } | null;
     const department = row.department as { name?: string | null; code?: string | null } | null;
-    const links = (row.od_request_students ?? []) as Array<{ student?: { full_name?: string | null; register_number?: string | null; section?: string | null; student_class?: string | null } | null }>;
+    const links = (row.od_request_students ?? []) as Array<{ student?: { full_name?: string | null; register_number?: string | null; section?: string | null; major?: string | null; minor?: string | null } | null }>;
     const people = links.map((entry) => entry.student).filter((person): person is NonNullable<typeof person> => Boolean(person));
     if (!people.length && requester) people.push(requester);
     const faculty = (row.od_request_faculty ?? []) as Array<{ status?: string }>;
@@ -75,7 +75,7 @@ async function loadDepartmentRequests() {
       facultyStatus,
       hodStatus: status === "PENDING_HOD" ? "Pending" : status === "APPROVED" ? "Approved" : status === "REJECTED_BY_HOD" ? "Rejected" : "Not reached",
       isSpecial: row.is_special_od === true,
-      students: people.map((person) => ({ name: person.full_name || "—", registerNumber: person.register_number || "—", section: person.section || "—", studentClass: person.student_class || "—" }))
+      students: people.map((person) => ({ name: person.full_name || "—", registerNumber: person.register_number || "—", section: person.section || "—", major: person.major || "—", minor: person.minor || "—" }))
     } satisfies HodODRow;
   });
 }

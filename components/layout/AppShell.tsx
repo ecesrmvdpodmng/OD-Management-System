@@ -107,7 +107,7 @@ export function AppShell({ user, children }: { user: Profile; children: React.Re
             </button>
             <div>
               <p className="text-sm font-semibold text-navy">{user.name}</p>
-              <p className="text-xs text-muted">{user.designation ?? [user.registerNumber, user.year && `${user.year}-${user.section}`, user.studentClass].filter(Boolean).join(" · ")}</p>
+              <p className="text-xs text-muted">{user.designation ?? [user.registerNumber, user.year && `${user.year}-${user.section}`, user.major, user.minor].filter(Boolean).join(" · ")}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

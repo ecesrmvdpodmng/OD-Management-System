@@ -39,7 +39,8 @@ export function SecondaryPageContent({ section }: { section: string }) {
           <ProfileDetail label="Register Number" value={currentUser.registerNumber} />
           <ProfileDetail label="Department" value={currentUser.departmentName ?? currentUser.department} />
           <ProfileDetail label="Section" value={currentUser.section} />
-          <ProfileDetail label="Class" value={currentUser.studentClass} />
+          <ProfileDetail label="Major" value={currentUser.major} />
+          <ProfileDetail label="Minor" value={currentUser.minor} />
           <ProfileDetail label="Year" value={currentUser.year} />
           <ProfileDetail label="College Email" value={currentUser.email} />
           <ProfileDetail label="Role" value={`${currentUser.role.charAt(0).toUpperCase()}${currentUser.role.slice(1)}`} />

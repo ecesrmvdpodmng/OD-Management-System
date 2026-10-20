@@ -21,9 +21,17 @@ describe("OD request mapping", () => {
     expect(mapped.isSpecial).toBe(false);
   });
 
-  it("retrieves section and class independently from profile rows", () => {
-    const mapped = profileFromRow({ id: "student-1", role: "student", section: "B", student_class: "VLSI", is_active: true });
+  it("retrieves major, minor, and section independently from profile rows", () => {
+    const mapped = profileFromRow({ id: "student-1", role: "student", major: "B.Tech", minor: "ECE VLSI", section: "B", is_active: true });
     expect(mapped.section).toBe("B");
-    expect(mapped.studentClass).toBe("VLSI");
+    expect(mapped.major).toBe("B.Tech");
+    expect(mapped.minor).toBe("ECE VLSI");
+  });
+
+  it("preserves existing profiles with unassigned major and minor", () => {
+    const mapped = profileFromRow({ id: "student-legacy", role: "student", section: "A", major: null, minor: null, is_active: true });
+    expect(mapped.section).toBe("A");
+    expect(mapped.major).toBeUndefined();
+    expect(mapped.minor).toBeUndefined();
   });
 });

@@ -4,14 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useDemo } from "@/components/od/DemoProvider";
 
-type ReportRow = { requestId: string; studentName: string; registerNumber: string; department: string; section: string; studentClass: string; odDate: string; odType: string; category: string; reason: string; facultyStatus: string; hodStatus: string; status: string; facultyDate: string; hodDate: string };
-const columns: Array<[keyof ReportRow, string]> = [["requestId","OD Request ID"],["studentName","Student"],["registerNumber","Register Number"],["department","Department"],["section","Section"],["studentClass","Class"],["odDate","OD Date"],["odType","OD Type"],["category","Category"],["reason","Reason / Purpose"],["facultyStatus","Faculty Approval"],["hodStatus","HOD Approval"],["status","Overall Status"],["facultyDate","Faculty Approval Date"],["hodDate","HOD Approval Date"]];
+type ReportRow = { requestId: string; studentName: string; registerNumber: string; department: string; major: string; minor: string; section: string; odDate: string; odType: string; category: string; reason: string; facultyStatus: string; hodStatus: string; status: string; facultyDate: string; hodDate: string };
+const columns: Array<[keyof ReportRow, string]> = [["requestId","OD Request ID"],["studentName","Student"],["registerNumber","Register Number"],["department","Department"],["major","Major"],["minor","Minor"],["section","Section"],["odDate","OD Date"],["odType","OD Type"],["category","OD Category"],["reason","Reason / Purpose"],["facultyStatus","Faculty Approval"],["hodStatus","HOD Approval"],["status","Overall Status"],["facultyDate","Faculty Approval Date"],["hodDate","HOD Approval Date"]];
 
 export function ConsolidatedPage() {
   const { currentUser } = useDemo();
   const [year, setYear] = useState("");
   const [section, setSection] = useState("");
-  const [studentClass, setStudentClass] = useState("");
+  const [major, setMajor] = useState("");
+  const [minor, setMinor] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [category, setCategory] = useState("");
@@ -24,14 +25,15 @@ export function ConsolidatedPage() {
     const params = new URLSearchParams();
     if (year) params.set("year", year);
     if (section) params.set("section", section);
-    if (studentClass) params.set("class", studentClass);
+    if (major) params.set("major", major);
+    if (minor) params.set("minor", minor);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     if (category) params.set("category", category);
     if (status) params.set("status", status);
     if (format) params.set("format", format);
     return `/api/consolidated?${params.toString()}`;
-  }, [year, section, studentClass, from, to, category, status]);
+  }, [year, section, major, minor, from, to, category, status]);
   useEffect(() => {
     let active = true;
     void fetch(getUrl(), { cache: "no-store" }).then(async (response) => {
@@ -56,7 +58,8 @@ export function ConsolidatedPage() {
     <section className="mb-5 rounded-lg border border-line bg-white p-4 shadow-soft"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <label className="text-sm font-medium text-muted">Year<select value={year} onChange={(event) => setYear(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option>{["I","II","III","IV"].map((item) => <option key={item}>{item}</option>)}</select></label>
       <label className="text-sm font-medium text-muted">Section<select value={section} onChange={(event) => setSection(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option><option>A</option><option>B</option></select></label>
-      <label className="text-sm font-medium text-muted">Class<select value={studentClass} onChange={(event) => setStudentClass(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option><option>Core</option><option>VLSI</option><option>DS</option></select></label>
+      <label className="text-sm font-medium text-muted">Major<select value={major} onChange={(event) => { setMajor(event.target.value); setMinor(""); }} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option><option>B.Tech</option><option>M.Tech</option></select></label>
+      <label className="text-sm font-medium text-muted">Minor<select value={minor} onChange={(event) => setMinor(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option>{(major === "M.Tech" ? ["ECE Core", "ECE VLSI"] : ["ECE Core", "ECE VLSI", "ECE DS"]).map((value) => <option key={value}>{value}</option>)}</select></label>
       <label className="text-sm font-medium text-muted">From date<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2" /></label>
       <label className="text-sm font-medium text-muted">To date<input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2" /></label>
       <label className="text-sm font-medium text-muted">Category<select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-1 w-full rounded-lg border border-line px-3 py-2"><option value="">All</option><option>Non-Technical</option><option>Technical</option><option>Club Organizer / Volunteer</option></select></label>

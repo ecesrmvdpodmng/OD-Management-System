@@ -14,7 +14,8 @@ type DatabaseProfile = {
   staff_setup_pending?: boolean | null;
   register_number: string | null;
   section: string | null;
-  student_class: string | null;
+  major: "B.Tech" | "M.Tech" | null;
+  minor: "ECE Core" | "ECE VLSI" | "ECE DS" | null;
   year: string | null;
   department_id: string | null;
 };
@@ -26,7 +27,7 @@ export async function lookupAuthenticatedProfile(
 ) {
   // Read the caller's own profile under profiles RLS. Avoid depending on an RPC
   // that may not exist in an already-provisioned Supabase schema.
-  const { data, error, count } = await supabase.from("profiles").select("id,auth_user_id,full_name,role,is_active,department_id,register_number,section,student_class,year,must_change_password,staff_setup_pending,designation", { count: "exact" })
+  const { data, error, count } = await supabase.from("profiles").select("id,auth_user_id,full_name,role,is_active,department_id,register_number,section,major,minor,year,must_change_password,staff_setup_pending,designation", { count: "exact" })
     .eq("auth_user_id", user.id).maybeSingle();
   const profileData = data as unknown as DatabaseProfile | null;
 

@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type AdminPageData = {
-  users: Array<{ id: string; name: string; email: string; role: string; registerNumber: string | null; section: string | null; studentClass: string | null; department: string; code: string; active: boolean; createdAt: string | null; mustChangePassword: boolean }>;
+  users: Array<{ id: string; name: string; email: string; role: string; registerNumber: string | null; section: string | null; major: string | null; minor: string | null; department: string; code: string; active: boolean; createdAt: string | null; mustChangePassword: boolean }>;
   departments: Array<{ id: string; name: string; code: string; active: boolean }>;
   years: Array<{ id: string; name: string; startDate: string; endDate: string; active: boolean }>;
   stats: Record<string, number>;
@@ -17,7 +17,7 @@ export async function loadAdminPageData(): Promise<{ ok: true; data: AdminPageDa
     await requireAdmin();
     const db = await createSupabaseServerClient();
     const [profiles, departments, years, requests, pendingFaculty, pendingHod, approved, rejectedFaculty, rejectedHod] = await Promise.all([
-      db.rpc("admin_profile_directory_v2", { p_search: null }),
+      db.rpc("admin_profile_directory_v3", { p_search: null }),
       db.from("departments").select("id,name,code,is_active").order("name"),
       db.from("academic_years").select("id,name,start_date,end_date,is_active").order("start_date", { ascending: false }),
       db.from("od_requests").select("id", { count: "exact", head: true }),
@@ -33,9 +33,9 @@ export async function loadAdminPageData(): Promise<{ ok: true; data: AdminPageDa
         throw new Error(process.env.NODE_ENV === "development" ? `Admin ${table} query failed (${error.code}): ${error.message}` : "Admin data could not be loaded. Confirm that the latest Supabase migrations are applied.");
       }
     }
-    const profileRows = (profiles.data ?? []) as Array<{ id: string; full_name: string | null; email: string; role: string; register_number: string | null; section: string | null; student_class: string | null; department_name: string | null; department_code: string | null; is_active: boolean; created_at: string | null; must_change_password: boolean }>;
+    const profileRows = (profiles.data ?? []) as Array<{ id: string; full_name: string | null; email: string; role: string; register_number: string | null; section: string | null; major: string | null; minor: string | null; department_name: string | null; department_code: string | null; is_active: boolean; created_at: string | null; must_change_password: boolean }>;
     const users = profileRows.map((row) => {
-      return { id: row.id, name: row.full_name ?? "", email: row.email, role: row.role, registerNumber: row.register_number, section: row.section, studentClass: row.student_class, department: row.department_name ?? "—", code: row.department_code ?? "", active: row.is_active, createdAt: row.created_at, mustChangePassword: row.must_change_password };
+      return { id: row.id, name: row.full_name ?? "", email: row.email, role: row.role, registerNumber: row.register_number, section: row.section, major: row.major, minor: row.minor, department: row.department_name ?? "—", code: row.department_code ?? "", active: row.is_active, createdAt: row.created_at, mustChangePassword: row.must_change_password };
     });
     const departmentRows = (departments.data ?? []).map((row) => ({ id: row.id, name: row.name, code: row.code, active: row.is_active }));
     const yearRows = (years.data ?? []).map((row) => ({ id: row.id, name: row.name, startDate: row.start_date, endDate: row.end_date, active: row.is_active }));

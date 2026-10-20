@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { StudentMajor, StudentMinor } from "@/types/domain";
 
 export const srmistEmailSchema = z.string().trim().email().max(254).refine((email) => email.toLowerCase().split("@").at(-1) === "srmist.edu.in", {
   message: "Use your @srmist.edu.in email address."
@@ -10,20 +11,29 @@ export const registerNumberSchema = z.string().trim().toUpperCase().regex(/^RA[A
 
 export const studentSections = ["A", "B"] as const;
 export type StudentSection = (typeof studentSections)[number];
-export const studentClasses = ["Core", "VLSI", "DS"] as const;
-export type StudentClass = (typeof studentClasses)[number];
+export const studentMajors = ["B.Tech", "M.Tech"] as const satisfies readonly StudentMajor[];
+export const studentMinorsByMajor = {
+  "B.Tech": ["ECE Core", "ECE VLSI", "ECE DS"],
+  "M.Tech": ["ECE Core", "ECE VLSI"]
+} as const satisfies Record<StudentMajor, readonly StudentMinor[]>;
+export const studentMinors = ["ECE Core", "ECE VLSI", "ECE DS"] as const satisfies readonly StudentMinor[];
+export type { StudentMajor, StudentMinor };
 
 export const registerStudentSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   registerNumber: registerNumberSchema,
-  departmentId: z.union([z.string().uuid(), z.literal("ECE")]),
+  major: z.enum(studentMajors),
+  minor: z.enum(studentMinors),
   section: z.enum(studentSections),
-  studentClass: z.enum(studentClasses),
   year: z.enum(["I", "II", "III", "IV"]),
   email: srmistEmailSchema,
   password: z.string().min(10).max(128),
   confirmPassword: z.string().min(10).max(128)
 }).refine((value) => value.password === value.confirmPassword, {
   message: "Passwords do not match.", path: ["confirmPassword"]
+}).refine((value) => value.major === "B.Tech"
+  ? studentMinorsByMajor["B.Tech"].some((minor) => minor === value.minor)
+  : studentMinorsByMajor["M.Tech"].some((minor) => minor === value.minor), {
+  message: "Choose a Minor that is available for the selected Major.", path: ["minor"]
 });
 

@@ -1,8 +1,17 @@
 import type { FacultyApprovalStatus, Notification, ODRecord, Profile, Role } from "@/types/domain";
+import { studentMajors, studentMinors } from "@/lib/validation/auth";
 
 type Row = Record<string, unknown>;
 
 function text(value: unknown) { return typeof value === "string" ? value : ""; }
+function majorValue(value: unknown): Profile["major"] {
+  const candidate = text(value);
+  return studentMajors.find((major) => major === candidate);
+}
+function minorValue(value: unknown): Profile["minor"] {
+  const candidate = text(value);
+  return studentMinors.find((minor) => minor === candidate);
+}
 
 export function profileFromRow(row: Row): Profile {
   const department = row.department && typeof row.department === "object" ? row.department as Row : {};
@@ -10,7 +19,8 @@ export function profileFromRow(row: Row): Profile {
     id: text(row.id), authUserId: text(row.auth_user_id) || undefined, name: text(row.name) || text(row.full_name), email: text(row.email),
     role: text(row.role) as Profile["role"], department: text(department.code) || text(row.department_code) || text(row.department_id),
     departmentName: text(department.name) || text(row.department_name) || undefined,
-    registerNumber: text(row.register_number) || undefined, year: (text(row.year) || undefined) as Profile["year"], section: text(row.section) || undefined, studentClass: text(row.student_class) || undefined,
+    registerNumber: text(row.register_number) || undefined, year: (text(row.year) || undefined) as Profile["year"], section: text(row.section) || undefined,
+    major: majorValue(row.major), minor: minorValue(row.minor),
     designation: text(row.designation) || undefined, isActive: Boolean(row.is_active)
   };
 }
