@@ -1,0 +1,41 @@
+
+name: Supabase Daily Activity
+
+on:
+  schedule:
+    - cron: "30 2 * * *" # Daily at 8:00 AM IST
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Supabase database activity
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
+            echo "Missing required GitHub Actions secrets."
+            exit 1
+          fi
+
+          response=$(curl --silent --show-error \
+            --get \
+            --output /tmp/response.txt \
+            --write-out "%{http_code}" \
+            --url "${SUPABASE_URL}/rest/v1/" \
+            --header "apikey: ${SUPABASE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_KEY}")
+
+          echo "Supabase HTTP status: $response"
+
+          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
+            echo "Supabase request failed."
+            cat /tmp/response.txt
+            exit 1
+          fi
+
+          echo "Supabase endpoint responded successfully."
