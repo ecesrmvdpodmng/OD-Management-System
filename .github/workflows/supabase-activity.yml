@@ -1,24 +1,65 @@
-      - name: Check Supabase database activity
+
+name: Supabase Daily Activity
+
+on:
+  schedule:
+    # Every day at 08:00 AM IST (02:30 UTC)
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-daily-activity
+  cancel-in-progress: false
+
+jobs:
+  keep-alive:
+    name: Check Supabase database activity
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Query Supabase read-only
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          response=$(curl --silent --show-error \
-            --get \
-            --output /tmp/response.txt \
-            --write-out "%{http_code}" \
-            --url "${SUPABASE_URL}/rest/v1/departments?select=id&limit=1" \
-            --header "apikey: ${SUPABASE_KEY}" \
-            --header "Authorization: Bearer ${SUPABASE_KEY}")
-
-          echo "Supabase HTTP status: $response"
-
-          if [ "$response" -lt 200 ] || [ "$response" -ge 300 ]; then
-            echo "Supabase query failed."
-            cat /tmp/response.txt
+          if [[ -z "${SUPABASE_URL:-}" || -z "${SUPABASE_KEY:-}" ]]; then
+            echo "::error::Missing SUPABASE_URL or SUPABASE_ANON_KEY repository secret."
             exit 1
           fi
 
-          echo "Read-only database query succeeded."
+          # Remove a trailing slash, if present.
+          SUPABASE_URL="${SUPABASE_URL%/}"
+
+          # Query an existing table using the publishable/anon key.
+          # This requires SELECT permission under your current RLS policies.
+          HTTP_STATUS=$(curl \
+            --silent \
+            --show-error \
+            --get \
+            --output response.json \
+            --write-out "%{http_code}" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "${SUPABASE_URL}/rest/v1/departments" \
+            --header "apikey: ${SUPABASE_KEY}" \
+            --header "Authorization: Bearer ${SUPABASE_KEY}" \
+            --data-urlencode "select=id" \
+            --data-urlencode "limit=1")
+
+          echo "Supabase HTTP status: ${HTTP_STATUS}"
+
+          if [[ ! "$HTTP_STATUS" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::error::Supabase read-only query failed with HTTP ${HTTP_STATUS}."
+            # Avoid printing response bodies that could contain sensitive data.
+            echo "Check the table name, column, API key, and SELECT/RLS permissions."
+            exit 1
+          fi
+
+          echo "Supabase read-only query succeeded."
